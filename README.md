@@ -72,7 +72,7 @@ Whether you use absolute paths or relative paths makes no difference. Just make 
 
 Now, the output shows you, in the first column, a version number, in the second column the last modification date of the file, in the third column you see the file size, and in the last column you see the path where the file was found. Version number 0 is always the current file you have actually been looking for.
 
-Now, let's assume you want to check out the version number 1. To do so, just call the exact same command again (typically, hit the up arrow), and put, as last parameter, that version number:
+Let's assume you want to check out the version number 2. To do so, just call the exact same command again (typically, hit the up arrow), and put, as last parameter, that version number:
 
 ```
 $ cccrestore Handbook.pdf 2
