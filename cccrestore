@@ -36,70 +36,121 @@ SOURCES=/Volumes/LaCie/Backup,"/Volumes/T3 - Backup Matthias"
 ###################################################
 #
 # End of Configuration.
+#
 ###################################################
 
+#
+# Check whether we have at least one command line parameter
+# 
+if [[ $# == 0 ]]; then
+  echo "Usage: $0 file-to-restore [version]"
+  exit 1
+fi
 
+#
+# Get the absolute location as well as the other parameters
+# 
 RESTORE=$(readlink -f "$1")
 TARGET=$2
 COMMAND=$3
 COUNT=0
 
+#
+# Run function:
+# 
+# Takes the backup source to restore from, the absolute path
+# of what to restore, and optionally, a version number
+# 
 _run() {
-	src="$1"
-	restore="$2"
-	target="$3"
+  src="$1"
+  restore="$2"
+  target="$3"
 
-	if [[ -e "$src/$restore" ]]; then
-		(( COUNT++ ))
-		if [[ $COUNT == $target ]]; then
-			open -R "$src$restore"
-			exit 0
-		else
-			if [[ $target == "" ]]; then
-				printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$src$restore")" "$(stat -f "%z" "$src$restore")" "$src$restore"
-			fi
-		fi
-	fi
+  if [[ -e "$src/$restore" ]]; then
+    (( COUNT++ ))
+    if [[ $COUNT == $target ]]; then
+      open -R "$src$restore"
+      exit 0
+    else
+      if [[ $target == "" ]]; then
+        printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$src$restore")" "$(stat -f "%z" "$src$restore")" "$src$restore"
+      fi
+    fi
+  fi
 
 
-	for i in "$src/_CCC SafetyNet/"*; do
-		if [[ -d "$i" ]]; then
-			if [[ -e "$i/$restore" ]]; then
-				(( COUNT++ ))
-				if [[ $COUNT == $target ]]; then
-					open -R "$i$restore"
-					exit 0
-				else
-					if [[ $target == "" ]]; then
-						printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$i$restore")" "$(stat -f "%z" "$i$restore")" "$i$restore"
-					fi
-				fi
-			fi
-		fi
-	done
+  for i in "$src/_CCC SafetyNet/"*; do
+    if [[ -d "$i" ]]; then
+      if [[ -e "$i/$restore" ]]; then
+        (( COUNT++ ))
+        if [[ $COUNT == $target ]]; then
+          open -R "$i$restore"
+          exit 0
+        else
+          if [[ $target == "" ]]; then
+            printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$i$restore")" "$(stat -f "%z" "$i$restore")" "$i$restore"
+          fi
+        fi
+      fi
+    fi
+  done
 }
 
-if [[ "$TARGET" == "" ]]; then
-	echo -e "\nVersion found in $RESTORE:\n"
-	printf '[%3d] %s %8d %s\n' 0 "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$RESTORE")" "$(stat -f "%z" "$RESTORE")" "$RESTORE"
+
+#
+# If we have no target version given, we show up with
+# our original file as version number 0
+# 
+if [[ "$TARGET" == "" && -e "$RESTORE" ]]; then
+  echo -e "\nVersion found in $RESTORE:\n"
+  printf '[%3d] %s %8d %s\n' 0 "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$RESTORE")" "$(stat -f "%z" "$RESTORE")" "$RESTORE"
 fi
 
 
+#
+# Iterate over the available sources, and call the
+# _run function for each of those
+# 
 IFS=,
 for SRC in $SOURCES; do
-	if [[ -d "$SRC" ]]; then
-		if [[ "$TARGET" == "" ]]; then
-			echo -e "\nVersions found in $SRC:\n"
-		fi
-		_run "$SRC" "$RESTORE" "$TARGET"
-	fi
+  if [[ -d "$SRC" ]]; then
+    if [[ "$TARGET" == "" ]]; then
+      echo -e "\nVersions found in $SRC:\n"
+    fi
+    _run "$SRC" "$RESTORE" "$TARGET"
+  fi
 done
 
-if [[ "$TARGET" != "" ]]; then
-	open -R "$RESTORE"
-	exit 0
+
+#
+# At this point, had we been giving a version number (target)
+# to restore, we would have opened the containing directory
+# in Finder, and exited gracefully from the script - in other
+# words, we would never get here. So if we did not, then we
+# can assume that we want to open the directory that
+# contains the original (version 0).
+#
+if [[ "$TARGET" == "0" ]]; then
+  open -R "$RESTORE"
+  exit 0
 fi
 
+#
+# If we get here, and were given a version number, then we
+# have apparently not found that number - in other words, it
+# does not exist. So wave our little hands in desperation.
+# 
+if [[ "$TARGET" != "" ]]; then
+  echo "Version $TARGET not found."
+  exit 1
+fi
+
+#
+# Ultimately, if we did not give a target, but we found at
+# least one version other than the original, we show a
+# message that invites the user to next time provide for
+# a version number.
+# 
 if [[ "$COUNT" -gt 0 && "$TARGET" == "" ]]; then
-	echo -e "\nTo restore a version, run the same command again and add the version number as last parameter."
+  echo -e "\nTo restore a version, run the same command again and add the version number as last parameter."
 fi
