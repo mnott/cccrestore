@@ -1,0 +1,105 @@
+#!/bin/bash
+
+###################################################
+#
+# Small script to find out, from safety nets of
+# Carbon Copy Cloner, in which of its snapshots
+# a given file or directory can be found.
+# 
+# Listing those, with leading line numbers.
+# 
+# If a line number is given as second parameter,
+# opening the containing directory.
+# 
+###################################################
+#
+# Please check out Carbon Copy Cloner - the most
+# awesome backup tool for the Mac - at
+# 
+# https://bombich.com/
+# 
+###################################################
+# (c) Matthias Nott, SAP. Licensed under WTFPL.
+###################################################
+
+###################################################
+# Configuration
+# 
+# Put here the sources where you would have CCC
+# run your backups to. Quote or escape spaces. Use
+# comma to separate multiple sources.
+# 
+###################################################
+
+SOURCES=/Volumes/LaCie/Backup,"/Volumes/T3 - Backup Matthias"
+
+###################################################
+#
+# End of Configuration.
+###################################################
+
+
+RESTORE=$(readlink -f "$1")
+TARGET=$2
+COMMAND=$3
+COUNT=0
+
+_run() {
+	src="$1"
+	restore="$2"
+	target="$3"
+
+	if [[ -e "$src/$restore" ]]; then
+		(( COUNT++ ))
+		if [[ $COUNT == $target ]]; then
+			open -R "$src$restore"
+			exit 0
+		else
+			if [[ $target == "" ]]; then
+				printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$src$restore")" "$(stat -f "%z" "$src$restore")" "$src$restore"
+			fi
+		fi
+	fi
+
+
+	for i in "$src/_CCC SafetyNet/"*; do
+		if [[ -d "$i" ]]; then
+			if [[ -e "$i/$restore" ]]; then
+				(( COUNT++ ))
+				if [[ $COUNT == $target ]]; then
+					open -R "$i$restore"
+					exit 0
+				else
+					if [[ $target == "" ]]; then
+						printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$i$restore")" "$(stat -f "%z" "$i$restore")" "$i$restore"
+					fi
+				fi
+			fi
+		fi
+	done
+}
+
+if [[ "$TARGET" == "" ]]; then
+	echo -e "\nVersion found in $RESTORE:\n"
+	printf '[%3d] %s %8d %s\n' 0 "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$RESTORE")" "$(stat -f "%z" "$RESTORE")" "$RESTORE"
+fi
+
+
+IFS=,
+for SRC in $SOURCES; do
+	if [[ -d "$SRC" ]]; then
+		if [[ "$TARGET" == "" ]]; then
+			echo -e "\nVersions found in $SRC:\n"
+		fi
+		_run "$SRC" "$RESTORE" "$TARGET"
+	fi
+done
+
+if [[ "$TARGET" != "" ]]; then
+	open -R "$RESTORE"
+	exit 0
+fi
+
+if [[ "$COUNT" -gt 0 && "$TARGET" == "" ]]; then
+	echo -e "\nTo restore a version, run the same command again and add the version number as last parameter."
+fi
