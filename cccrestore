@@ -50,7 +50,7 @@ fi
 #
 # Get the absolute location as well as the other parameters
 # 
-RESTORE=$(readlink -f "$1")
+RESTORE=$(greadlink -f "$1")
 TARGET=$2
 COMMAND=$3
 COUNT=0
