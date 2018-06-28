@@ -5,33 +5,33 @@
 # Small script to find out, from safety nets of
 # Carbon Copy Cloner, in which of its snapshots
 # a given file or directory can be found.
-# 
+#
 # Listing those, with leading line numbers.
-# 
+#
 # If a line number is given as second parameter,
 # opening the containing directory.
-# 
+#
 ###################################################
 #
 # Please check out Carbon Copy Cloner - the most
 # awesome backup tool for the Mac - at
-# 
+#
 # https://bombich.com/
-# 
+#
 ###################################################
 # (c) Matthias Nott, SAP. Licensed under WTFPL.
 ###################################################
 
 ###################################################
 # Configuration
-# 
+#
 # Put here the sources where you would have CCC
 # run your backups to. Quote or escape spaces. Use
 # comma to separate multiple sources.
-# 
+#
 ###################################################
 
-SOURCES=/Volumes/LaCie/Backup,"/Volumes/T3 - Backup Matthias"
+SOURCES=/Volumes/Backup,"/Volumes/Samsung T3"
 
 ###################################################
 #
@@ -41,7 +41,7 @@ SOURCES=/Volumes/LaCie/Backup,"/Volumes/T3 - Backup Matthias"
 
 #
 # Check whether we have at least one command line parameter
-# 
+#
 if [[ $# == 0 ]]; then
   echo "Usage: $0 file-to-restore [version]"
   exit 1
@@ -49,7 +49,7 @@ fi
 
 #
 # Get the absolute location as well as the other parameters
-# 
+#
 RESTORE=$(greadlink -f "$1")
 TARGET=$2
 COMMAND=$3
@@ -57,10 +57,10 @@ COUNT=0
 
 #
 # Run function:
-# 
+#
 # Takes the backup source to restore from, the absolute path
 # of what to restore, and optionally, a version number
-# 
+#
 _run() {
   src="$1"
   restore="$2"
@@ -100,7 +100,7 @@ _run() {
 #
 # If we have no target version given, we show up with
 # our original file as version number 0
-# 
+#
 if [[ "$TARGET" == "" && -e "$RESTORE" ]]; then
   echo -e "\nVersion found in $RESTORE:\n"
   printf '[%3d] %s %8d %s\n' 0 "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$RESTORE")" "$(stat -f "%z" "$RESTORE")" "$RESTORE"
@@ -110,7 +110,7 @@ fi
 #
 # Iterate over the available sources, and call the
 # _run function for each of those
-# 
+#
 IFS=,
 for SRC in $SOURCES; do
   if [[ -d "$SRC" ]]; then
@@ -118,6 +118,30 @@ for SRC in $SOURCES; do
       echo -e "\nVersions found in $SRC:\n"
     fi
     _run "$SRC" "$RESTORE" "$TARGET"
+  fi
+done
+
+
+#
+# CCC Snapshots
+#
+if [[ "$TARGET" == "" ]]; then
+    echo -e "\nVersions found in CCC snapshots:\n"
+fi
+
+for i in "/private/tmp/ccc_"*; do
+  if [[ -d "$i" ]]; then
+    if [[ -e "$i/$RESTORE" ]]; then
+      (( COUNT++ ))
+      if [[ $COUNT == $TARGET ]]; then
+        open -R "$i$RESTORE"
+        exit 0
+      else
+        if [[ $target == "" ]]; then
+          printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$i$RESTORE")" "$(stat -f "%z" "$i$RESTORE")" "$i$RESTORE"
+        fi
+      fi
+    fi
   fi
 done
 
@@ -139,7 +163,7 @@ fi
 # If we get here, and were given a version number, then we
 # have apparently not found that number - in other words, it
 # does not exist. So wave our little hands in desperation.
-# 
+#
 if [[ "$TARGET" != "" ]]; then
   echo "Version $TARGET not found."
   exit 1
@@ -150,7 +174,7 @@ fi
 # least one version other than the original, we show a
 # message that invites the user to next time provide for
 # a version number.
-# 
+#
 if [[ "$COUNT" -gt 0 && "$TARGET" == "" ]]; then
   echo -e "\nTo restore a version, run the same command again and add the version number as last parameter."
 fi
