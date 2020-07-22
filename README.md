@@ -116,7 +116,7 @@ version of readlink, greadlink as described
 [here](https://www.topbug.net/blog/2013/04/14/install-and-use-gnu-command-line-tools-in-mac-os-x/).
 I'm updating the relevant line at the top of the script, but to
 make it work for you, if you have not yet installed the GNU command
-line tools, chances are that \*\*cccrestore\*\* will not work for you.
+line tools, chances are that cccrestore will not work for you.
 
 # INSTALLATION
 

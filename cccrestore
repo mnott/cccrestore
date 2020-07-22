@@ -113,6 +113,17 @@ if (defined $umount) {
 	exit 0;
 }
 
+
+#
+# Shortcut for myself to recreate the documentation
+# without having to remember how it was done.
+#
+if ( defined $doc ) {
+	system("$pod2md < $0 | perl -pe 's/\\\\\\[(.*?)\\\\\\]/[\$1]/g' >README.md");
+	exit 0;
+}
+
+
 #
 # Fetch file name and optionally the version
 # as remaining command line parameter
@@ -132,15 +143,6 @@ if (scalar @sources == 0) {
 	@sources = @dsources;
 }
 
-
-#
-# Shortcut for myself to recreate the documentation
-# without having to remember how it was done.
-#
-if ( defined $doc ) {
-	system("$pod2md < $0 | perl -pe 's/\\\\\\[(.*?)\\\\\\]/[\$1]/g' >README.md");
-	exit 0;
-}
 
 #
 # Get full file path
@@ -373,7 +375,7 @@ version of readlink, greadlink as described
 [here](https://www.topbug.net/blog/2013/04/14/install-and-use-gnu-command-line-tools-in-mac-os-x/).
 I'm updating the relevant line at the top of the script, but to
 make it work for you, if you have not yet installed the GNU command
-line tools, chances are that **cccrestore** will not work for you.
+line tools, chances are that cccrestore will not work for you.
 
 
 =head1 INSTALLATION
