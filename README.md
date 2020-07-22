@@ -1,87 +1,178 @@
-Welcome to cccrestore!
-=====================
+# NAME
 
-Update
-----------
-I have just noticed that for with a recent update of XCode, the readlink -f  command no longer works. I suggest to install the GNU version of readlink, greadlink as described [here](https://www.topbug.net/blog/2013/04/14/install-and-use-gnu-command-line-tools-in-mac-os-x/). I'm updating the relevant line at the top of the script, but to make it work for you, if you have not yet installed the GNU command line tools, chances are that **cccrestore** will not work for you.
+cccrestore - File Restore Utility for Carbon Copy Cloner
 
+# VERSION
 
-Summary
----------
+Version 0.0.2
 
-This is a small script that lets you find snapshots you may have taken, of a file or directory, using the awesome backup tool [Carbon Copy Cloner](https://bombich.com/). Carbon Copy Cloner can keep versions in its so-called safety net. Other than TimeMachine, it does not provide for a simple user interface to identify which versions of any given file or directory are actually available. So when you are looking for some file **Handbook.pdf** that you may have on your desktop, you would end up hunting for that file in those ***_CCC SafetyNet*** subdirectories within your backup locations, and more often than not, you'd not find it in many of those - as it is only backed up into the safety net if it actually was changed.
+# LICENCE AND COPYRIGHT
 
-**cccrestore** solves this searching issue by giving you a very simple command that you can run in your terminal: It shows you which versions are available of any given file or directory, and it also allows you to directly open the directory that contains a given version, in a Finder window.
+Copyright (c) 2018 - 2020 Matthias Nott (mnott (at) mnsoft.org).
 
-----------
+Licensed under WTFPL.
 
-Configuration
----------
+# SYNOPSIS
 
-If you have downloaded **cccrestore** to your Downloads folder, open the file in an editor. Towards the top, you'll see a configuration section:
+./cccrestore [options] file [version]
 
-```
-###################################################
-# Configuration
-# 
-# Put here the sources where you would have CCC
-# run your backups to. Quote or escape spaces. Use
-# comma to separate multiple sources.
-# 
-###################################################
+Command line options can take any order on the command line;
+the file parameter is mandatory, the version number optional.
 
-SOURCES=/Volumes/LaCie/Backup,"/Volumes/T3 - Backup Matthias"
-```
+    Options:
 
-In the line that reads SOURCES, add the specific location(s) where you normally have Carbon Copy Cloner run your backups to. You can easily identify them: They normally would have a subdirectory ***_CCC SafetyNet***.
+      General Options:
 
-----------
+      -help            brief help message   (alternatives: ?, -h)
+      -man             full documentation   (alternatives: -m)
 
-Installation
----------
+      Program Options:
 
-Copy **cccrestore** to a directory that you have in your path on your Mac and make it executable. For example, if you have downloaded it to your Downloads folder, you could open a command line and do this:
+      -u               Unmount the snapshots (alternative: -unmount)
+      -r               Root folder to create mount the snapshots to (alternative: -root)
+      -s               Source to look for snapshots (alternative: -sources)
+      -v               Print out more information   (alternative: -verbose)
 
-```
-chmod 755 ~/Downloads/cccrestore
-cp -av ~/Downloads/cccrestore /usr/local/bin
-```
+      Other Options:
 
-----------
+      -doc             Recreate the README.md (needs pod2markdown)
 
-Usage
----------
+# OPTIONS
 
-In a terminal, just call the script with some file or directory of which you want to quickly identify the versions that Carbon Copy Cloner has created fo you. For example, if you have a file Handbook.pdf in your current directory, you'd call:
+- **-help**
 
-```
-$ cccrestore Handbook.pdf 
+    Print a brief help message and exits.
 
-Version found in /Users/mnott/Desktop/Handbook.pdf:
+- **-man**
 
-[  0] 2016-11-05 09:31:39     1000 /Users/mnott/Desktop/Handbook.pdf
+    Prints the manual page and exits.
 
-Versions found in /Volumes/LaCie/Backup:
+- **-doc**
 
-[  1] 2016-11-05 09:31:39     1000 /Volumes/LaCie/Backup/Users/mnott/Desktop/Handbook.pdf
+    Use pod2markdown to recreate the documentation / README.md.
+    You need to configure your location of pod2markdown at the
+    top, if you want to do this (it's really an option for me,
+    only...)
 
-Versions found in /Volumes/T3 - Backup Matthias:
+- **-u**
 
-[  2] 2016-11-05 09:31:39     1000 /Volumes/T3 - Backup Matthias/Users/mnott/Desktop/Handbook.pdf
+    Unmount the snapshots. This option takes precedence
+    of all other options. The mounted snapshots, if any,
+    from the root folder are unmounted.
 
-To restore a version, run the same command again and add the version number as last parameter.
-```
+- **-r**
 
-Whether you use absolute paths or relative paths makes no difference. Just make sure to escape them correctly, i.e., use either a backslash in front of spaces, or just double-quote the file path, if you have spaces in it.
+    Root folder to mount the snapshots into. Default:
 
-Now, the output shows you, in the first column, a version number, in the second column the last modification date of the file, in the third column you see the file size, and in the last column you see the path where the file was found. Version number 0 is always the current file you have actually been looking for.
+        /private/tmp/snaps
 
-Let's assume you want to check out the version number 2. To do so, just call the exact same command again (typically, hit the up arrow), and put, as last parameter, that version number:
+- **-s**
 
-```
-$ cccrestore Handbook.pdf 2
-```
-This will open the directory within which the version of the file or directory you were looking for, was found, in a finder window.
+    Drives to look for snapshots in. For example:
 
-And that's already all to it! Have fun with it.
+        -s / -s "/Volumes/Backup"
 
+- **-v**
+
+    Be more verbose in printing out information.
+
+# SUMMARY
+
+This is a small script that lets you find, within snapshots that
+[Carbon Copy Cloner](https://bombich.com/) may have taken for you,
+older versions of files.
+
+A previous version of this script was working based on \_CCC SafetyNet
+subdirectories within your backup locations. As the author of Carbon
+Copy Cloner, Mike Bombich, has pointed out to me, CCC's safety net
+[has some shortcomings](https://bombich.com/kb/ccc5/frequently-asked-questions-about-carbon-copy-cloner-safetynet#archived\_bundles)
+and he has suggested to rather use [snapshots on APFS Volumes](https://bombich.com/kb/ccc5/leveraging-snapshots-on-apfs-volumes).
+In that same article, he also writes how to have hourly snapshots
+created by adding a dummy backup task that copies from one empty
+folder into another. Mike also gives an example on
+[how to run snapshots more frequently](https://bombich.com/kb/ccc5/can-i-run-my-backups-more-frequently-hourly).
+
+With that information, you can utilize APFS snapshots to create
+versions of files, and with this program, you can then find any
+older version of a file or directory.
+
+# CONFIGURATION
+
+With the command line options mentioned above, there is no need
+to configure the program. But if you want to permanently store
+the list of backup source volumes within the code, so that you
+do not have to pass them as command line parameters, you can do
+so towards the top of the script, where you'll find this line:
+
+    my @dsources = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten")
+
+Just adapt this to your needs.
+
+# NOTE
+
+I have just noticed that for with a recent update of XCode, the
+readlink -f command no longer works. I suggest to install the GNU
+version of readlink, greadlink as described
+[here](https://www.topbug.net/blog/2013/04/14/install-and-use-gnu-command-line-tools-in-mac-os-x/).
+I'm updating the relevant line at the top of the script, but to
+make it work for you, if you have not yet installed the GNU command
+line tools, chances are that \*\*cccrestore\*\* will not work for you.
+
+# INSTALLATION
+
+Copy cccrestore to a directory that you have in your path on
+your Mac and make it executable. For example, if you have
+downloaded it to your Downloads folder, you could open a
+command line and do this:
+
+    chmod 755 ~/Downloads/cccrestore
+    cp -av ~/Downloads/cccrestore /usr/local/bin
+
+# USAGE
+
+In a terminal, just call the script with some file or
+directory of which you want to quickly identify the versions
+that Carbon Copy Cloner has created fo you. For example, if you
+have a file Handbook.pdf in your current directory, you'd call:
+
+    $ cccrestore Handbook.pdf
+    Version: [  1] - Size:   6205 - Modified: 07/22/2020 00:39:49 - Snapshot: 07/22/2020 00:44:07
+    Version: [  2] - Size:   5680 - Modified: 07/21/2020 23:24:02 - Snapshot: 07/21/2020 23:44:07
+    Version: [  3] - Size:   5596 - Modified: 07/21/2020 22:59:51 - Snapshot: 07/21/2020 23:00:03
+    Version: [  4] - Size:   5346 - Modified: 07/21/2020 22:44:03 - Snapshot: 07/21/2020 22:44:03
+    Version: [  5] - Size:   5325 - Modified: 07/21/2020 22:43:45 - Snapshot: 07/21/2020 22:44:00
+    Version: [  6] - Size:   4959 - Modified: 07/21/2020 21:41:22 - Snapshot: 07/21/2020 21:44:07
+    Version: [  7] - Size:   4183 - Modified: 07/21/2020 20:42:07 - Snapshot: 07/21/2020 20:44:07
+    Version: [  8] - Size:   4048 - Modified: 07/21/2020 19:23:30 - Snapshot: 07/21/2020 19:44:07
+    Version: [  9] - Size:   3974 - Modified: 07/21/2020 17:50:32 - Snapshot: 07/21/2020 18:00:00
+    Version: [ 10] - Size:   3381 - Modified: 07/21/2020 16:59:46 - Snapshot: 07/21/2020 17:00:00
+    Version: [ 11] - Size:   2891 - Modified: 07/21/2020 14:12:21 - Snapshot: 07/21/2020 16:00:00
+
+You can see, in the first column, a version numbering. You need that
+for restoring any given version of the file. In the second column,
+you see the file size; the third column holds the modification date
+of the file, while the last column holds the timestamp of when the
+snapshot was taken.
+
+There may be many more snapshots on your system, and cccrestore
+will investigate all of them; the above list will only contain
+those where the file was changing from one snapshot to the next.
+
+If you now want to restore one given version, you just call the
+program again, in exactly the same way, but add the version number
+to the end of it:
+
+    $ cccrestore Handbook.pdf 7
+
+The above command will open the folder containing version number 7.
+
+# CLEANUP
+
+cccrestore will load all available snapshots. This can clutter
+your desktop, depending on whether or not you chose to show
+mounted locations. To clean up and unmount all those snapshots,
+just do this:
+
+    $ cccrestore -u
+
+This should unmount all mounted snapshots.
