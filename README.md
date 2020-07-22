@@ -83,7 +83,9 @@ the file parameter is mandatory, the version number optional.
 
     Drives to look for snapshots in. For example:
 
-        -s / -s "/Volumes/Backup"
+        -s /System/Volumes/Data -s "/Volumes/Backup"
+
+    It appears to work better to use /System/Volumes/Data instead of just /.
 
 - **-v**
 

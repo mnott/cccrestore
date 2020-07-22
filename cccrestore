@@ -1,7 +1,7 @@
 #!/usr/bin/env perl -w
 ###################################################
 #
-# cccrestore
+# cccrestore3
 #
 # Restore file or directory from APFS snapshots.
 #
@@ -67,7 +67,7 @@ use POSIX qw(strftime);
 #
 my $ccc         = "/Applications/Utilities/Carbon Copy Cloner.app/Contents/MacOS/ccc";
 my $backup_task = "Snapshot";
-my @dsources    = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten");
+my @dsources    = ("/System/Volumes/Data", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten");
 my $root        = "/private/tmp/snaps";
 
 #
@@ -91,8 +91,8 @@ my $man;
 my $verbose;
 
 GetOptions(
-  'b|backup:s'        => \$backup,  # Run the Snapshot task
-  'u|unmount:s'       => \$umount,  # Unmount the Snapshots?
+	'b|backup:s'        => \$backup,  # Run the Snapshot task
+	'u|unmount:s'       => \$umount,  # Unmount the Snapshots?
 	'r|root:s'          => \$root,    # Mount Root
 	's|sources:s'       => \@sources, # Backup Sources
 	'v|verbose:s'       => \$verbose, # Print out the mount points
@@ -257,10 +257,10 @@ foreach my $key (reverse sort keys %sorted_snapshots) {
 				print " - Location: $filename";
 			}
 			print "\n";
+			$lastfile = $filename;
 		}
 		++$i;
 	}
-	$lastfile = $filename;
 }
 
 
@@ -352,7 +352,9 @@ Root folder to mount the snapshots into. Default:
 
 Drives to look for snapshots in. For example:
 
-    -s / -s "/Volumes/Backup"
+    -s /System/Volumes/Data -s "/Volumes/Backup"
+
+It appears to work better to use /System/Volumes/Data instead of just /.
 
 =item B<-v>
 
