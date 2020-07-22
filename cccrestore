@@ -1,15 +1,9 @@
-#!/bin/bash
-
+#!/usr/bin/env perl -w
 ###################################################
 #
-# Small script to find out, from safety nets of
-# Carbon Copy Cloner, in which of its snapshots
-# a given file or directory can be found.
+# cccrestore.pl
 #
-# Listing those, with leading line numbers.
-#
-# If a line number is given as second parameter,
-# opening the containing directory.
+# Restore file or directory from APFS snapshots.
 #
 ###################################################
 #
@@ -19,162 +13,432 @@
 # https://bombich.com/
 #
 ###################################################
-# (c) Matthias Nott, SAP. Licensed under WTFPL.
+#
+# About the documentation:
+#
+# Created like
+#
+# pod2markdown.pl <cccrestore.pl >README.md
+#
+# Using the excellent podmarkdown by Randy Stauner.
+#
+###################################################
+#
+# (c) 2019 Matthias Nott, SAP
+#
+# Licensed under WTFPL
+#
 ###################################################
 
+my $pod2md = "pod2markdown.pl";    # Must be in $PATH
+
+=head1 NAME
+
+cccrestore - File Restore Utility for Carbon Copy Cloner
+
+=head1 VERSION
+
+Version 0.0.2
+
+=head1 LICENCE AND COPYRIGHT
+
+Copyright (c) 2018 - 2020 Matthias Nott (mnott (at) mnsoft.org).
+
+Licensed under WTFPL.
+
+=cut
+
 ###################################################
+#
+# Dependencies
+#
+###################################################
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Pod::Usage;
+use File::stat;
+use Data::Dumper;
+use POSIX qw(strftime);
+
+#
 # Configuration
 #
-# Put here the sources where you would have CCC
-# run your backups to. Quote or escape spaces. Use
-# comma to separate multiple sources.
-#
-###################################################
-
-SOURCES=/Volumes/Backup,"/Volumes/Samsung T3"
-
-###################################################
-#
-# End of Configuration.
-#
-###################################################
+my $root = "/private/tmp/snaps";
+my @dsources = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten");
+my @sources;
 
 #
-# Check whether we have at least one command line parameter
+# Other Variables
 #
-if [[ $# == 0 ]]; then
-  echo "Usage: $0 file-to-restore [version]"
-  exit 1
-fi
+my @real_sources;
+my @sorted_sources;
+my $mountpoints;
+my $snapshots;
 
 #
-# Get the absolute location as well as the other parameters
+# Command Line
 #
-RESTORE=$(greadlink -f "$1")
-TARGET=$2
-COMMAND=$3
-COUNT=0
+my $version;
+my $umount;
+my $doc;
+my $help;
+my $man;
+my $verbose;
+
+GetOptions(
+	'u|unmount:s'       => \$umount,  # Unmount the Snapshots?
+	'r|root:s'          => \$root,    # Mount Root
+	's|sources:s'       => \@sources, # Backup Sources
+	'v|verbose:s'       => \$verbose, # Print out the mount points
+	'doc|documentation' => \$doc,
+	'h|?|help'          => \$help,
+	'man'               => \$man,
+) or pod2usage(2);
+pod2usage(1) if defined $help;
+pod2usage( -exitval => 0, -verbose => 2 ) if defined $man;
 
 #
-# Run function:
+# Unmount: If given, unmount all that's
+# currently mounted into the root directory,
+# and then exit
 #
-# Takes the backup source to restore from, the absolute path
-# of what to restore, and optionally, a version number
+if (defined $umount) {
+	my $res    = `mount | grep "$root" | awk '{ print \$1 }'`;
+	my @mounts = split('\n', $res);
+	foreach my $mount (@mounts) {
+		`umount "$mount" >/dev/null 2>&1`;
+	}
+	exit 0;
+}
+
 #
-_run() {
-  src="$1"
-  restore="$2"
-  target="$3"
+# Fetch file name and optionally the version
+# as remaining command line parameter
+#
+my $nargs   = $#ARGV;
+my $file 	= $ARGV[$#ARGV-1];
 
-  if [[ -e "$src/$restore" ]]; then
-    (( COUNT++ ))
-    if [[ $COUNT == $target ]]; then
-      open -R "$src$restore"
-      exit 0
-    else
-      if [[ $target == "" ]]; then
-        printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$src$restore")" "$(stat -f "%z" "$src$restore")" "$src$restore"
-      fi
-    fi
-  fi
+if($nargs > 0) {
+	$version = $ARGV[$#ARGV];
+}
 
+if (! defined $file) {
+	die "Please specify a file name or directory to restore, and optionally a version.\n";
+}
 
-  for i in "$src/_CCC SafetyNet/"*; do
-    if [[ -d "$i" ]]; then
-      if [[ -e "$i/$restore" ]]; then
-        (( COUNT++ ))
-        if [[ $COUNT == $target ]]; then
-          open -R "$i$restore"
-          exit 0
-        else
-          if [[ $target == "" ]]; then
-            printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$i$restore")" "$(stat -f "%z" "$i$restore")" "$i$restore"
-          fi
-        fi
-      fi
-    fi
-  done
+if (scalar @sources == 0) {
+	@sources = @dsources;
 }
 
 
 #
-# If we have no target version given, we show up with
-# our original file as version number 0
+# Shortcut for myself to recreate the documentation
+# without having to remember how it was done.
 #
-if [[ "$TARGET" == "" && -e "$RESTORE" ]]; then
-  echo -e "\nVersion found in $RESTORE:\n"
-  printf '[%3d] %s %8d %s\n' 0 "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$RESTORE")" "$(stat -f "%z" "$RESTORE")" "$RESTORE"
-fi
+if ( defined $doc ) {
+	system("$pod2md < $0 | perl -pe 's/\\\\\\[(.*?)\\\\\\]/[\$1]/g' >README.md");
+	exit 0;
+}
+
+#
+# Get full file path
+#
+my $restore = `greadlink -f "$file"`;
+
+#
+# Get all the mount points
+#
+foreach my $source (@sources) {
+	next if ! -d "$source";
+	my $res = `diskutil info "$source" | grep "Node"        | perl -pe "s/.*?:\\s*(.*)/\\1/g"`;
+	my $mnt = `diskutil info "$source" | grep "Mount Point" | perl -pe "s/.*?:\\s*(.*)/\\1/g"`;
+	chomp $res;
+	chomp $mnt;
+	push (@real_sources, $mnt);
+	$mountpoints->{"$mnt"} = $res;
+}
 
 
 #
-# Iterate over the available sources, and call the
-# _run function for each of those
+# Get all the snapshots
 #
-IFS=,
-for SRC in $SOURCES; do
-  if [[ -d "$SRC" ]]; then
-    if [[ "$TARGET" == "" ]]; then
-      echo -e "\nVersions found in $SRC:\n"
-    fi
-    _run "$SRC" "$RESTORE" "$TARGET"
-  fi
-done
+foreach my $source (@real_sources) {
+	my $res = `tmutil listlocalsnapshots "$source" | grep -v :`;
+	my @sna = split('\n', $res);
+
+	$snapshots->{"$source"} = \@sna;
+}
 
 
 #
-# CCC Snapshots
+# Sort the Snapshots
 #
-if [[ "$TARGET" == "" ]]; then
-    echo -e "\nVersions found in CCC snapshots:\n"
-fi
+my %sorted_snapshots;
 
-for i in "/private/tmp/ccc_"*; do
-  if [[ -d "$i" ]]; then
-    if [[ -e "$i/$RESTORE" ]]; then
-      (( COUNT++ ))
-      if [[ $COUNT == $TARGET ]]; then
-        open -R "$i$RESTORE"
-        exit 0
-      else
-        if [[ $target == "" ]]; then
-          printf '[%3d] %s %8d %s\n' "$COUNT" "$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$i$RESTORE")" "$(stat -f "%z" "$i$RESTORE")" "$i$RESTORE"
-        fi
-      fi
-    fi
-  fi
-done
+foreach my $source (@real_sources) {
+	my %ssna;
+	my $sna = $snapshots->{"$source"};
+	foreach my $snapshot (@$sna) {
+		my ($ts) = $snapshot =~ /^.*\.(.*)$/;
+		$sorted_snapshots{$ts} = $snapshot;
+	}
+}
 
 
 #
-# At this point, had we been giving a version number (target)
-# to restore, we would have opened the containing directory
-# in Finder, and exited gracefully from the script - in other
-# words, we would never get here. So if we did not, then we
-# can assume that we want to open the directory that
-# contains the original (version 0).
+# Create the backup mount points
 #
-if [[ "$TARGET" == "0" ]]; then
-  open -R "$RESTORE"
-  exit 0
-fi
+if (! -d "$root") {
+	`mkdir -p "$root"`;
+}
+
 
 #
-# If we get here, and were given a version number, then we
-# have apparently not found that number - in other words, it
-# does not exist. So wave our little hands in desperation.
+# Mount the snapshots
 #
-if [[ "$TARGET" != "" ]]; then
-  echo "Version $TARGET not found."
-  exit 1
-fi
+foreach my $source (@real_sources) {
+	my $sna = $snapshots->{"$source"};
+
+	foreach my $snapshot (@$sna) {
+		if (! -d "$root/$snapshot") {
+			`mkdir -p "$root/$snapshot"`;
+		}
+		if ("" eq `mount | grep "$snapshot"`) {
+			`mount_apfs -s $snapshot $mountpoints->{$source} $root/$snapshot >/dev/null 2>&1`
+		}
+	}
+}
+
 
 #
-# Ultimately, if we did not give a target, but we found at
-# least one version other than the original, we show a
-# message that invites the user to next time provide for
-# a version number.
+# List the snapshots or open a version
 #
-if [[ "$COUNT" -gt 0 && "$TARGET" == "" ]]; then
-  echo -e "\nTo restore a version, run the same command again and add the version number as last parameter."
-fi
+my $lastfile = "";
+my $i = 1;
+foreach my $key (reverse sort keys %sorted_snapshots) {
+	my $snapshot  = $sorted_snapshots{$key};
+	my $filename  = "$root/$snapshot$restore";
+	chomp $filename;
+	my ($filedir) = $filename =~ /(.*)\/.*/;
+
+	if (-e "$filename" && (("" eq "$lastfile") || $i == 1 || (-e "$lastfile" && `diff "$filename" "$lastfile"` ne ""))) {
+		if(defined $version) { # If a version is given, open it's folder
+			if ($i == $version) {
+				`open "$filedir"`;
+				exit 0;
+			}
+		} else {
+			my $st        = stat($filename);
+			my $modify_ts = strftime("%m/%d/%Y %H:%M:%S", localtime($st->mtime));
+			my $size      = sprintf("%6d", $st->size);
+			my $f_version = sprintf("[%3d]", $i);
+			my ($s_yr, $s_mo, $s_dy, $s_hr, $s_mn, $s_sec) = $key =~ /(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})/;
+			print "Version: $f_version - Size: $size - Modified: $modify_ts - Snapshot: $s_mo/$s_dy/$s_yr $s_hr:$s_mn:$s_sec";
+			if(defined $verbose) {
+				print " - Location: $filename";
+			}
+			print "\n";
+		}
+		++$i;
+	}
+	$lastfile = $filename;
+}
+
+
+
+###################################################
+#
+# Documentation
+#
+###################################################
+
+__END__
+
+
+=head1 SYNOPSIS
+
+./cccrestore [options] file [version]
+
+Command line options can take any order on the command line;
+the file parameter is mandatory, the version number optional.
+
+ Options:
+
+   General Options:
+
+   -help            brief help message   (alternatives: ?, -h)
+   -man             full documentation   (alternatives: -m)
+
+   Program Options:
+
+   -u               Unmount the snapshots (alternative: -unmount)
+   -r               Root folder to create mount the snapshots to (alternative: -root)
+   -s               Source to look for snapshots (alternative: -sources)
+   -v               Print out more information   (alternative: -verbose)
+
+   Other Options:
+
+   -doc             Recreate the README.md (needs pod2markdown)
+
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+
+=item B<-doc>
+
+Use pod2markdown to recreate the documentation / README.md.
+You need to configure your location of pod2markdown at the
+top, if you want to do this (it's really an option for me,
+only...)
+
+
+=item B<-u>
+
+Unmount the snapshots. This option takes precedence
+of all other options. The mounted snapshots, if any,
+from the root folder are unmounted.
+
+=item B<-r>
+
+Root folder to mount the snapshots into. Default:
+
+    /private/tmp/snaps
+
+=item B<-s>
+
+Drives to look for snapshots in. For example:
+
+    -s / -s "/Volumes/Backup"
+
+=item B<-v>
+
+Be more verbose in printing out information.
+
+=back
+
+
+
+=head1 SUMMARY
+
+This is a small script that lets you find, within snapshots that
+[Carbon Copy Cloner](https://bombich.com/) may have taken for you,
+older versions of files.
+
+A previous version of this script was working based on _CCC SafetyNet
+subdirectories within your backup locations. As the author of Carbon
+Copy Cloner, Mike Bombich, has pointed out to me, CCC's safety net
+[has some shortcomings](https://bombich.com/kb/ccc5/frequently-asked-questions-about-carbon-copy-cloner-safetynet#archived_bundles)
+and he has suggested to rather use [snapshots on APFS Volumes](https://bombich.com/kb/ccc5/leveraging-snapshots-on-apfs-volumes).
+In that same article, he also writes how to have hourly snapshots
+created by adding a dummy backup task that copies from one empty
+folder into another. Mike also gives an example on
+[how to run snapshots more frequently](https://bombich.com/kb/ccc5/can-i-run-my-backups-more-frequently-hourly).
+
+
+With that information, you can utilize APFS snapshots to create
+versions of files, and with this program, you can then find any
+older version of a file or directory.
+
+
+=head1 CONFIGURATION
+
+With the command line options mentioned above, there is no need
+to configure the program. But if you want to permanently store
+the list of backup source volumes within the code, so that you
+do not have to pass them as command line parameters, you can do
+so towards the top of the script, where you'll find this line:
+
+    my @dsources = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten")
+
+Just adapt this to your needs.
+
+
+=head1 NOTE
+
+I have just noticed that for with a recent update of XCode, the
+readlink -f command no longer works. I suggest to install the GNU
+version of readlink, greadlink as described
+[here](https://www.topbug.net/blog/2013/04/14/install-and-use-gnu-command-line-tools-in-mac-os-x/).
+I'm updating the relevant line at the top of the script, but to
+make it work for you, if you have not yet installed the GNU command
+line tools, chances are that **cccrestore** will not work for you.
+
+
+=head1 INSTALLATION
+
+Copy cccrestore to a directory that you have in your path on
+your Mac and make it executable. For example, if you have
+downloaded it to your Downloads folder, you could open a
+command line and do this:
+
+    chmod 755 ~/Downloads/cccrestore
+    cp -av ~/Downloads/cccrestore /usr/local/bin
+
+
+=head1 USAGE
+
+In a terminal, just call the script with some file or
+directory of which you want to quickly identify the versions
+that Carbon Copy Cloner has created fo you. For example, if you
+have a file Handbook.pdf in your current directory, you'd call:
+
+    $ cccrestore Handbook.pdf
+    Version: [  1] - Size:   6205 - Modified: 07/22/2020 00:39:49 - Snapshot: 07/22/2020 00:44:07
+    Version: [  2] - Size:   5680 - Modified: 07/21/2020 23:24:02 - Snapshot: 07/21/2020 23:44:07
+    Version: [  3] - Size:   5596 - Modified: 07/21/2020 22:59:51 - Snapshot: 07/21/2020 23:00:03
+    Version: [  4] - Size:   5346 - Modified: 07/21/2020 22:44:03 - Snapshot: 07/21/2020 22:44:03
+    Version: [  5] - Size:   5325 - Modified: 07/21/2020 22:43:45 - Snapshot: 07/21/2020 22:44:00
+    Version: [  6] - Size:   4959 - Modified: 07/21/2020 21:41:22 - Snapshot: 07/21/2020 21:44:07
+    Version: [  7] - Size:   4183 - Modified: 07/21/2020 20:42:07 - Snapshot: 07/21/2020 20:44:07
+    Version: [  8] - Size:   4048 - Modified: 07/21/2020 19:23:30 - Snapshot: 07/21/2020 19:44:07
+    Version: [  9] - Size:   3974 - Modified: 07/21/2020 17:50:32 - Snapshot: 07/21/2020 18:00:00
+    Version: [ 10] - Size:   3381 - Modified: 07/21/2020 16:59:46 - Snapshot: 07/21/2020 17:00:00
+    Version: [ 11] - Size:   2891 - Modified: 07/21/2020 14:12:21 - Snapshot: 07/21/2020 16:00:00
+
+You can see, in the first column, a version numbering. You need that
+for restoring any given version of the file. In the second column,
+you see the file size; the third column holds the modification date
+of the file, while the last column holds the timestamp of when the
+snapshot was taken.
+
+There may be many more snapshots on your system, and cccrestore
+will investigate all of them; the above list will only contain
+those where the file was changing from one snapshot to the next.
+
+If you now want to restore one given version, you just call the
+program again, in exactly the same way, but add the version number
+to the end of it:
+
+    $ cccrestore Handbook.pdf 7
+
+The above command will open the folder containing version number 7.
+
+
+
+=head1 CLEANUP
+
+cccrestore will load all available snapshots. This can clutter
+your desktop, depending on whether or not you chose to show
+mounted locations. To clean up and unmount all those snapshots,
+just do this:
+
+    $ cccrestore -u
+
+This should unmount all mounted snapshots.
+
+
+
+
+=cut
