@@ -28,6 +28,7 @@ the file parameter is mandatory, the version number optional.
 
       Program Options:
 
+      -b               Start CCC backup task (alternative: -backup)
       -u               Unmount the snapshots (alternative: -unmount)
       -r               Root folder to create mount the snapshots to (alternative: -root)
       -s               Source to look for snapshots (alternative: -sources)
@@ -51,8 +52,20 @@ the file parameter is mandatory, the version number optional.
 
     Use pod2markdown to recreate the documentation / README.md.
     You need to configure your location of pod2markdown at the
-    top, if you want to do this (it's really an option for me,
+    top, if you want to do this (it is really an option for me,
     only...)
+
+- **-b**
+
+    Carbon Copy Cloner can be run from the command line. If you
+    configure a snapshot task according to
+    [this article](https://bombich.com/kb/ccc5/leveraging-snapshots-on-apfs-volumes),
+    you can start this task like so:
+
+        $ cccrestore -b Snapshot
+
+    If you omit the name of the Snapshot task, cccrestore will
+    use "Snapshot" by default.
 
 - **-u**
 
@@ -90,7 +103,8 @@ and he has suggested to rather use [snapshots on APFS Volumes](https://bombich.c
 In that same article, he also writes how to have hourly snapshots
 created by adding a dummy backup task that copies from one empty
 folder into another. Mike also gives an example on
-[how to run snapshots more frequently](https://bombich.com/kb/ccc5/can-i-run-my-backups-more-frequently-hourly).
+[how to run snapshots more frequently](https://bombich.com/kb/ccc5/can-i-run-my-backups-more-frequently-hourly);
+I have used that example for the backup option of cccrestore.
 
 With that information, you can utilize APFS snapshots to create
 versions of files, and with this program, you can then find any
@@ -107,6 +121,17 @@ so towards the top of the script, where you'll find this line:
     my @dsources = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten")
 
 Just adapt this to your needs.
+
+If you want to trigger backups with cccrestore, you must make
+sure to point the following line to your actual location of
+Carbon Copy Cloner:
+
+    my $ccc = "/Applications/Utilities/Carbon Copy Cloner.app/Contents/MacOS/ccc";
+
+Also, it may make sense, should your snapshot task not be named
+"Snapshot", to adapt the following line:
+
+    my $backup_task = "Snapshot";
 
 # NOTE
 

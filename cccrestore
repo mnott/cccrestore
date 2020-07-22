@@ -1,7 +1,7 @@
 #!/usr/bin/env perl -w
 ###################################################
 #
-# cccrestore.pl
+# cccrestore
 #
 # Restore file or directory from APFS snapshots.
 #
@@ -18,7 +18,7 @@
 #
 # Created like
 #
-# pod2markdown.pl <cccrestore.pl >README.md
+# pod2markdown.pl <cccrestore >README.md
 #
 # Using the excellent podmarkdown by Randy Stauner.
 #
@@ -65,13 +65,15 @@ use POSIX qw(strftime);
 #
 # Configuration
 #
-my $root = "/private/tmp/snaps";
-my @dsources = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten");
-my @sources;
+my $ccc         = "/Applications/Utilities/Carbon Copy Cloner.app/Contents/MacOS/ccc";
+my $backup_task = "Snapshot";
+my @dsources    = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten");
+my $root        = "/private/tmp/snaps";
 
 #
 # Other Variables
 #
+my @sources;
 my @real_sources;
 my @sorted_sources;
 my $mountpoints;
@@ -81,6 +83,7 @@ my $snapshots;
 # Command Line
 #
 my $version;
+my $backup;
 my $umount;
 my $doc;
 my $help;
@@ -88,7 +91,8 @@ my $man;
 my $verbose;
 
 GetOptions(
-	'u|unmount:s'       => \$umount,  # Unmount the Snapshots?
+  'b|backup:s'        => \$backup,  # Run the Snapshot task
+  'u|unmount:s'       => \$umount,  # Unmount the Snapshots?
 	'r|root:s'          => \$root,    # Mount Root
 	's|sources:s'       => \@sources, # Backup Sources
 	'v|verbose:s'       => \$verbose, # Print out the mount points
@@ -98,6 +102,17 @@ GetOptions(
 ) or pod2usage(2);
 pod2usage(1) if defined $help;
 pod2usage( -exitval => 0, -verbose => 2 ) if defined $man;
+
+#
+# Backup: If given, run the backup task and exit.
+#
+if (defined $backup) {
+  if ($backup ne "") {
+    $backup_task = $backup;
+  }
+  `"$ccc" --start "$backup_task"`;
+  exit 0;
+}
 
 #
 # Unmount: If given, unmount all that's
@@ -275,6 +290,7 @@ the file parameter is mandatory, the version number optional.
 
    Program Options:
 
+   -b               Start CCC backup task (alternative: -backup)
    -u               Unmount the snapshots (alternative: -unmount)
    -r               Root folder to create mount the snapshots to (alternative: -root)
    -s               Source to look for snapshots (alternative: -sources)
@@ -302,8 +318,22 @@ Prints the manual page and exits.
 
 Use pod2markdown to recreate the documentation / README.md.
 You need to configure your location of pod2markdown at the
-top, if you want to do this (it's really an option for me,
+top, if you want to do this (it is really an option for me,
 only...)
+
+
+=item B<-b>
+
+Carbon Copy Cloner can be run from the command line. If you
+configure a snapshot task according to
+[this article](https://bombich.com/kb/ccc5/leveraging-snapshots-on-apfs-volumes),
+you can start this task like so:
+
+    $ cccrestore -b Snapshot
+
+If you omit the name of the Snapshot task, cccrestore will
+use "Snapshot" by default.
+
 
 
 =item B<-u>
@@ -346,7 +376,8 @@ and he has suggested to rather use [snapshots on APFS Volumes](https://bombich.c
 In that same article, he also writes how to have hourly snapshots
 created by adding a dummy backup task that copies from one empty
 folder into another. Mike also gives an example on
-[how to run snapshots more frequently](https://bombich.com/kb/ccc5/can-i-run-my-backups-more-frequently-hourly).
+[how to run snapshots more frequently](https://bombich.com/kb/ccc5/can-i-run-my-backups-more-frequently-hourly);
+I have used that example for the backup option of cccrestore.
 
 
 With that information, you can utilize APFS snapshots to create
@@ -365,6 +396,17 @@ so towards the top of the script, where you'll find this line:
     my @dsources = ("/", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten")
 
 Just adapt this to your needs.
+
+If you want to trigger backups with cccrestore, you must make
+sure to point the following line to your actual location of
+Carbon Copy Cloner:
+
+    my $ccc = "/Applications/Utilities/Carbon Copy Cloner.app/Contents/MacOS/ccc";
+
+Also, it may make sense, should your snapshot task not be named
+"Snapshot", to adapt the following line:
+
+    my $backup_task = "Snapshot";
 
 
 =head1 NOTE
