@@ -67,7 +67,7 @@ use POSIX qw(strftime);
 #
 my $ccc         = "/Applications/Utilities/Carbon Copy Cloner.app/Contents/MacOS/ccc";
 my $backup_task = "Snapshot";
-my @dsources    = ("/System/Volumes/Data", "/Volumes/Backup", "/Volumes/Samsung T3 - Daten");
+my @dsources    = ("/System/Volumes/Data", "/Volumes/Daten", "/Volumes/Samsung T3 - Daten");
 my $root        = "/private/tmp/snaps";
 
 #
